@@ -15,7 +15,42 @@ namespace device {
         float z = kappa * device::gamma(T / kappa, state);
         return theta * z + sigma * sqrtf(z) * curand_normal(state);
     }
+}
 
+__global__ void vg_process_kernel(
+    float *x,
+    float dt,
+    float sigma,
+    float theta,
+    float kappa,
+    int n,
+    curandState *state
+) {
+    int id = threadIdx.x + blockIdx.x * blockDim.x;
+    if (id >= n) return;
+
+    curandState local_state = state[id];
+
+    /*
+     * We pass a single dt (and a number of steps) instead of
+     * a whole time array to avoid having to reach into global
+     * mamory. We could without much trouble pass an array of dt(s)
+     * instead. But we don't need that.
+     *
+     * float dt = t[id] - (id > 0 ? t[id - 1] : 0.0f);
+     * 
+     */
+    float dx = device::vg(dt, sigma, theta, kappa, &local_state);
+
+    x[id] = dx;
+
+    /*
+     * Note : We don't do the required cumsum here, because it involves a scan,
+     * which we have _some_ confidence implementing on a single thread block,
+     * but very little across mutliple ones. We'll do the cumsum with torch.
+     */
+
+    state[id] = local_state;
 }
 
 __global__ void _batched_vg_pricing_martingale_constant_kernel(
@@ -43,7 +78,10 @@ __global__ void batched_vg_pricing_kernel(
     int batch_size,
     curandState *state
 ) {
-    // Swapped for efficiency
+    /*
+     * Note : Swapped for efficiency, samples from a same batch share parameters and
+     * should be kept close in memory. The performance gain on my laptop is significant.
+     */
     int sample_id = threadIdx.x + blockIdx.x * blockDim.x;
     int batch_id = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -52,15 +90,45 @@ __global__ void batched_vg_pricing_kernel(
 
     int id = batch_id * mc_steps + sample_id;
 
-    x_mc[id] = device::vg(T[batch_id], sigma[batch_id], theta[batch_id], kappa[batch_id], &state[id]);
+    /*
+     * Note : `state` points to global memory, keeping the state local to the thread registers
+     * avoids back and forths to global memory.
+     */
+    curandState local_state = state[id];
+
+    x_mc[id] = device::vg(T[batch_id], sigma[batch_id], theta[batch_id], kappa[batch_id], &local_state);
     x_mc[id] = expf(omega[batch_id] * T[batch_id] + x_mc[id]);
     x_mc[id] = x_mc[id] - K[batch_id];
     x_mc[id] = fmaxf(x_mc[id], 0.0f);
+
+    state[id] = local_state;
 }
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+    void cuda_vg_process(
+        float *x,
+        float dt,
+        float sigma,
+        float theta,
+        float kappa,
+        int n,
+        CudaRNG* state
+    ) {
+        if (n > state->n) return;
+
+        int threadsPerBlock = 256;
+        int blocks = (n + threadsPerBlock - 1) / threadsPerBlock;
+
+        vg_process_kernel<<<blocks, threadsPerBlock>>>(x, dt, sigma, theta, kappa, n, state->states);
+
+        CUDA_CHECK(cudaPeekAtLastError());
+        #ifdef DEBUG
+            CUDA_CHECK(cudaDeviceSynchronize());
+        #endif
+    }
 
     void cuda_batched_vg_pricing(
         float *x_mc,
@@ -89,8 +157,8 @@ extern "C" {
         threadsPerBlock.z = 1;
 
         dim3 blocks;
-        blocks.x = (batch_size + threadsPerBlock.x - 1) / threadsPerBlock.x;
-        blocks.y = (mc_steps + threadsPerBlock.y - 1) / threadsPerBlock.y;
+        blocks.x = (mc_steps + threadsPerBlock.x - 1) / threadsPerBlock.x;
+        blocks.y = (batch_size + threadsPerBlock.y - 1) / threadsPerBlock.y;
         blocks.z = 1;
 
         batched_vg_pricing_kernel<<<blocks, threadsPerBlock>>>(x_mc, T, K, sigma, theta, kappa, omega, mc_steps, batch_size, state->states);

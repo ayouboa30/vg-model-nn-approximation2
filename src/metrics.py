@@ -15,4 +15,4 @@ class Loss(nn.Module):
     
     def forward(self, y_hat: torch.Tensor, y: torch.Tensor):
 
-        return torch.mean((self.delta**2) * (torch.sqrt(1 + (y_hat - y / self.delta)**2) - 1))
+        return torch.mean(self.delta ** 2 * (torch.sqrt(1 + ((y_hat - y) / self.delta)**2) - 1))

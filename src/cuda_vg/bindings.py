@@ -31,6 +31,34 @@ class CudaRNG:
             self.lib.cuda_cleanup_rng(self.handle)
             del self.handle
 
+
+def safe_tensor(t: torch.Tensor, raise_error: bool = False) -> torch.Tensor:
+    if not t.is_cuda:
+        message = "Tensor is not on device memory"
+
+        if raise_error: raise RuntimeError(message)
+        else: 
+            warnings.warn(message, RuntimeWarning)
+            t = t.to("cuda")
+
+    if t.dtype != torch.float32:
+        message = "Tensor is not float32"
+
+        if raise_error: raise RuntimeError(message)
+        else: 
+            warnings.warn(message, RuntimeWarning)
+            t = t.to(torch.float32)
+
+    if not t.is_contiguous():
+        message = "Tensor is not contiguous"
+
+        if raise_error: raise RuntimeError(message)
+        else: 
+            warnings.warn(message, RuntimeWarning)
+            t = t.contiguous()
+
+    return t
+
 def cuda_gamma(n: int, a: float, random_state: CudaRNG):
     if not hasattr(random_state.lib.cuda_gamma, "argtypes"):
         random_state.lib.cuda_gamma.argtypes = [
@@ -53,6 +81,51 @@ def cuda_gamma(n: int, a: float, random_state: CudaRNG):
     x_ptr = ctypes.cast(x.data_ptr(), ctypes.POINTER(ctypes.c_float))
 
     random_state.lib.cuda_gamma(x_ptr, n, ctypes.c_float(a), random_state.handle)
+
+    return x
+
+def cuda_vg_process(
+    n: int,
+    dt: float,
+    sigma: float,
+    theta: float,
+    kappa: float,
+    random_state: CudaRNG,
+):
+    if not hasattr(random_state.lib.cuda_vg_process, "argtypes"):
+        random_state.lib.cuda_vg_process.argtypes = [
+            ctypes.POINTER(ctypes.c_float),
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_int,
+            ctypes.POINTER(CudaRNGStructure), 
+        ]
+        random_state.lib.cuda_vg_process.restype = None
+
+    x = torch.empty((n,), device="cuda", dtype=torch.float32)
+
+    if random_state.n < n:
+        raise ValueError("Not enough memory allocated to CudaRNG")
+    
+    if dt < 0.002572:
+        warnings.warn(
+            f"Time steps are below safe threshold (0.002572) for Johnk's Gamma sampling method.",
+            RuntimeWarning
+        )
+
+    random_state.lib.cuda_vg_process(
+        ctypes.cast(safe_tensor(x, raise_error=True).data_ptr(), ctypes.POINTER(ctypes.c_float)),
+        ctypes.c_float(dt),
+        ctypes.c_float(sigma),
+        ctypes.c_float(theta),
+        ctypes.c_float(kappa),
+        ctypes.c_int(n),
+        random_state.handle
+    )
+
+    x.cumsum_(0)
 
     return x
 
@@ -79,33 +152,6 @@ def cuda_batched_vg_pricing(
             ctypes.POINTER(CudaRNGStructure), 
         ]
         random_state.lib.cuda_batched_vg_pricing.restype = None
-
-    def safe_tensor(t: torch.Tensor, raise_error: bool = False) -> torch.Tensor:
-        if not t.is_cuda:
-            message = "Tensor is not on device memory"
-
-            if raise_error: raise RuntimeError(message)
-            else: 
-                warnings.warn(message, RuntimeWarning)
-                t = t.to("cuda")
-
-        if t.dtype != torch.float32:
-            message = "Tensor is not float32"
-
-            if raise_error: raise RuntimeError(message)
-            else: 
-                warnings.warn(message, RuntimeWarning)
-                t = t.to(torch.float32)
-
-        if not t.is_contiguous():
-            message = "Tensor is not contiguous"
-
-            if raise_error: raise RuntimeError(message)
-            else: 
-                warnings.warn(message, RuntimeWarning)
-                t = t.contiguous()
-
-        return t
 
     batch_size = len(T)
 

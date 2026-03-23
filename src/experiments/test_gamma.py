@@ -43,3 +43,7 @@ def kstest_gamma_min_safe_shape(
     print(f"Test-based minimum reliable Gamma shape found is a={a_pass} with p={p_value_pass} and epsilon={epsilon}")
             
     return a_pass
+
+
+if __name__ == "__main__":
+    raise NotImplementedError

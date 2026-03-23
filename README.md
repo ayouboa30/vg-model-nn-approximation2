@@ -63,16 +63,35 @@ We use CUDA and python, you need to have [`uv`](https://docs.astral.sh/uv/gettin
 
 For instance given the gamma process used in the VG model, we knew we'd encounter low gamma shape parameter values, we ran some KS test to ensure Johnk'algorithm did not encounter precision issues. The code can be found in `experiments/`.
 
-## Results
+#### Plotting A Generated VG Process
+
+```
+uv run src/experiments/plot_vg_process.py
+```
+
+![VG Process](./vg_process.png)
+
+#### Testing Gamma Sampler
+
+```
+uv run src/experiments/test_gamma.py
+```
+
+#### Training a Model to Approximate the MC simulation
+
+```
+uv run src/main.py
+```
 
 ```Model: ResidualMLP
+Model: ResidualMLP
 Learnable parameters : 16098
-Hit max epoch : 200                                                                                                                                                                           
-Loss : 0.12893 (train) | 0.12825 (val) | 0.10875 (test)
-Prior sampling time : 0.68s (0.00000060s/sample)
-VG sampling time    : 2.43s (0.00000215s/sample)
-MC sampling time    : 0.00000654s/sample
-Model sampling time : 0.00002898s/sample
+Early stopping at epoch : 198                                                                                                                                                                 
+Loss : 0.15807 (train) | 0.18334 (val) | 0.17054 (test)
+Prior sampling time : 0.42s (0.00000038s/sample)
+VG sampling time    : 65.57s (0.00005878s/sample)
+MC sampling time    : 0.00015023s/sample
+Model sampling time : 0.00001355s/sample
 ```
 
 ![Learning Curves](./learning_curves.png)
