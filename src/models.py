@@ -20,9 +20,9 @@ class MLP(nn.Module):
         self.out_layer = nn.Linear(hidden_dim, 1, device=device, dtype=dtype)
 
     def forward(self, x: torch.Tensor):
-        x = nn.functional.gelu(self.in_layer(x))
+        x = nn.functional.softplus(self.in_layer(x))
 
         for layer in self.hid_layers:
-            x = nn.functional.gelu(layer(x))
+            x = nn.functional.softplus(layer(x))
         
-        return self.out_layer(x)
+        return nn.functional.softplus(self.out_layer(x))
