@@ -45,6 +45,14 @@ class MLP(nn.Module):
         return nn.functional.softplus(self.out_layer(x))
 
 
+Voici le code modifié de ta classe ICNN. Cette version hybride est optimale car elle utilise la CELU dans les couches cachées pour la performance (réduction de la MARE) et la Softplus en sortie pour la sécurité (garantie de positivité).
+
+Code modifié pour models.py
+Python
+import torch
+from torch import nn
+import torch.nn.functional as F
+
 class ICNN(nn.Module):
     def __init__(self, hidden_dim=256, depth=5, device=None, dtype=None):
         super().__init__()
@@ -60,12 +68,11 @@ class ICNN(nn.Module):
         ])
 
         self.out_layer = PositiveLinear(hidden_dim, 1, device=device, dtype=dtype)
+
         self.act = nn.CELU(alpha=1.0)
 
     def forward(self, x: torch.Tensor):
         z = self.act(self.x_layers[0](x))
-        
         for i in range(len(self.z_layers)):
             z = self.act(self.z_layers[i](z) + self.x_layers[i+1](x))
-            
-        return self.act(self.out_layer(z))
+        return F.softplus(self.out_layer(z))
