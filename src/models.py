@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 import math
 
 class Linear(nn.Linear):
@@ -45,13 +46,6 @@ class MLP(nn.Module):
         return nn.functional.softplus(self.out_layer(x))
 
 
-Voici le code modifié de ta classe ICNN. Cette version hybride est optimale car elle utilise la CELU dans les couches cachées pour la performance (réduction de la MARE) et la Softplus en sortie pour la sécurité (garantie de positivité).
-
-Code modifié pour models.py
-Python
-import torch
-from torch import nn
-import torch.nn.functional as F
 
 class ICNN(nn.Module):
     def __init__(self, hidden_dim=256, depth=5, device=None, dtype=None):
