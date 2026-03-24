@@ -46,9 +46,9 @@ class MLP(nn.Module):
 
 
 class ICNN(nn.Module):
-    def __init__(self, hidden_dim=32, depth=3, device=None, dtype=None):
+    def __init__(self, hidden_dim=256, depth=5, device=None, dtype=None):
         super().__init__()
-
+        
         self.z_layers = nn.ModuleList([
             PositiveLinear(hidden_dim, hidden_dim, device=device, dtype=dtype) 
             for _ in range(depth - 1)
@@ -60,12 +60,12 @@ class ICNN(nn.Module):
         ])
 
         self.out_layer = PositiveLinear(hidden_dim, 1, device=device, dtype=dtype)
+        self.act = nn.CELU(alpha=1.0)
 
     def forward(self, x: torch.Tensor):
-
-        z = nn.functional.softplus(self.x_layers[0](x))
+        z = self.act(self.x_layers[0](x))
         
         for i in range(len(self.z_layers)):
-            z = nn.functional.softplus(self.z_layers[i](z) + self.x_layers[i+1](x))
+            z = self.act(self.z_layers[i](z) + self.x_layers[i+1](x))
             
-        return self.out_layer(z)
+        return self.act(self.out_layer(z))
