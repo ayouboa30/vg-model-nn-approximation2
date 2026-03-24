@@ -30,12 +30,6 @@ def plot_learning_curves(train_losses: List[float], val_losses: List[float], tes
         lr_epochs = range(1, len(learning_rates) + 1)
         ax_lr.plot(lr_epochs, learning_rates, label="Learning Rate", color="black")
         
-        # if max(learning_rates) / (min(learning_rates) + 1e-12) > 10:
-        #     ax_lr.set_yscale("log")
-        #     ax_lr.set_ylabel("LR (log scale)")
-        # else:
-        #     ax_lr.set_ylabel("LR")
-
         ax_lr.set_ylabel("LR")
             
         ax_lr.set_title("Learning Rate Schedule")
@@ -44,4 +38,5 @@ def plot_learning_curves(train_losses: List[float], val_losses: List[float], tes
         ax_lr.legend()
 
     plt.tight_layout()
+    plt.savefig("learning_curves.png")
     plt.show()
