@@ -118,7 +118,7 @@ def main():
         (ThresholdedWeightedMSE(precision=1e-8), 1.),
         (MonotonyLoss(1, increasing=False), 1.),
         (MonotonyLoss(0, increasing=True), 1.),
-        (ConvexityLoss(1, convex=True), 10.),
+        (ConvexityLoss(1, convex=True), 0.),
     ])
 
     # model = Linear(bias=False, device=device)
