@@ -117,4 +117,5 @@ def plot_model_evaluation(
         axes_delta[i].legend()
 
     plt.tight_layout()
+    plt.savefig("model_evaluation.png")
     plt.show()
