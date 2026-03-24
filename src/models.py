@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import math
 
 class Linear(nn.Linear):
     def __init__(self, bias: bool = True, device = None, dtype = None) -> None:
