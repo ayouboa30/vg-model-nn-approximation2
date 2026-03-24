@@ -71,9 +71,9 @@ class EarlyStopping:
 
 def main():
     seed = 1
-    batch_size = 256
-    epoch_size = 50
-    max_epoch = 400
+    batch_size = 512
+    epoch_size = 200
+    max_epoch = 1000
     device = "cuda"
 
     mc_steps = 32_768
@@ -122,14 +122,14 @@ def main():
     ])
 
     # model = Linear(bias=False, device=device)
-    model = ICNN(hidden_dim=128, depth=5, device=device)
+    model = ICNN(hidden_dim=256, depth=5, device=device)
 
     print(f"Model: {model.__class__.__name__}")
     print(f"Learnable parameters : {sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)}")
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=5e-4,
+        lr=3e-4,
         weight_decay=1e-4,
         betas=(0.9, 0.999),
     )
