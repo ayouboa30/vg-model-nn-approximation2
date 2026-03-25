@@ -115,9 +115,9 @@ class MonotonyLoss(PhysicsInformedLoss):
                 retain_graph=True
             )[0]
 
-            dx = dx[:, self.feature]
-
-        return torch.mean((torch.clamp(dx, max=0.) if self.increasing else torch.clamp(dx, min=0.))**2)
+            dx_feat = dx[:, self.feature]
+        return torch.mean((torch.clamp(dx_feat, max=0.) if self.increasing
+                       else torch.clamp(dx_feat, min=0.))**2)
 
 class ConvexityLoss(PhysicsInformedLoss):
     def __init__(self, feature: int, convex: bool = True):
