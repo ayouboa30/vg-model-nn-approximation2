@@ -1,220 +1,148 @@
 from typing import (
-    List,
-    Dict,
+    Any,
     Optional,
+    List,
+    Tuple
 )
 
-import random
+import inspect
+
 import torch
-import numpy as np
-from tqdm import tqdm
+from torch import nn
 
-from cuda_vg import VGPricingDataset
-from metrics import ThresholdedWeightedMSE, MonotonyLoss, ConvexityLoss, CombinedLoss
-from models import Linear, MLP,PICNN
-from experiments import plot_model_evaluation, plot_learning_curves
+# TODO : Very unclear code and pattern, need to rework that
 
-def set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+class CombinedLoss(nn.Module):
+    def __init__(self, losses: List[Tuple[nn.Module, float]]) -> None:
+        super().__init__()
+        self.any_requires_dx = False
+        self.any_requires_hx = False
 
-def evaluate(
-    model: torch.nn.Module,
-    loss_fn: CombinedLoss,
-    loader: torch.utils.data.DataLoader,
-    device: Optional[torch.device] = None,
-):
-    model.eval()
+        signed_losses = []
+
+        for (loss_fn, weight) in losses:
+            if isinstance(loss_fn, PhysicsInformedLoss):
+                signature = inspect.signature(loss_fn)
+                requires_dx = "dx" in signature.parameters.keys()
+                requires_hx = "dh" in signature.parameters.keys()
+                signed_losses.append((loss_fn, weight, requires_dx, requires_hx))
+
+                self.any_requires_dx = self.any_requires_dx or requires_dx
+                self.any_requires_hx = self.any_requires_hx or requires_hx
+            else:
+                signed_losses.append((loss_fn, weight, False, False))
+
+        self.any_requires_dx = self.any_requires_dx or self.any_requires_hx
+        self.signed_losses = signed_losses
+
+    def forward(self, x: torch.Tensor, y_hat: torch.Tensor, y: torch.Tensor, ic: torch.Tensor):
+
+        if self.any_requires_dx:
+            dx = torch.autograd.grad(
+                outputs=y_hat,
+                inputs=x,
+                grad_outputs=torch.ones_like(y_hat, device=y_hat.device),
+                create_graph=True,
+                retain_graph=True
+            )[0]
+        else:
+            dx = None
+
+        if self.any_requires_hx:
+            hx = torch.autograd.grad(
+                outputs=dx,
+                inputs=x,
+                grad_outputs=torch.ones_like(dx, device=dx.device),
+                create_graph=True,
+                retain_graph=True
+            )[0]
+        else:
+            hx = None
+
+        loss = torch.tensor(0., device=y_hat.device)
+        for (loss_fn, weight, requires_dx, requires_hx) in self.signed_losses:
+            if isinstance(loss_fn, WeightedLoss):
+                loss += weight * loss_fn(y_hat, y, ic)
+            elif isinstance(loss_fn, PhysicsInformedLoss):
+                kwargs = {}
+                if requires_dx: kwargs["dx"] = dx
+                if requires_hx: kwargs["hx"] = hx
+
+                loss += weight * loss_fn(x, y_hat, **kwargs)
+            else:
+                loss += weight * loss_fn(y_hat, y)
+
+        return loss
     
-    x, y, ic = next(iter(loader))
-    x, y, ic = x.to(device), y.to(device), ic.to(device)
-    x.requires_grad_()
+class WeightedLoss(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
 
-    y_hat = model(x)
-    loss = loss_fn(x, y_hat, y, ic)
+    def forward(self, y_hat: torch.Tensor, y: torch.Tensor, ic: Optional[torch.Tensor] = None):
+        raise NotImplementedError
 
-    return loss.item()
+class ThresholdedWeightedMSE(WeightedLoss):
+    def __init__(self, precision: float = 1e-4) -> None:
+        super().__init__()
 
-class EarlyStopping:
-    def __init__(self, patience: int = 7, monitor: str = "loss",  mode: str = "min", delta: float = 0.00001):
-        self.patience = patience
-        self.delta = delta
-        self.monitor = monitor
-        self.mode = mode
-        self.counter = 0
-        self.best_metric = None
-        self.early_stop = False
+        self.precision = precision
 
-    def __call__(self, metrics: Dict[str, float]) -> bool:
-        if self.best_metric is None:
-            self.best_metric = metrics[self.monitor]
-            return False
-
-        if self.mode == "min":
-            improved = metrics[self.monitor] < (self.best_metric - self.delta)
-        else:
-            improved = metrics[self.monitor] > (self.best_metric + self.delta)
-
-        if improved:
-            self.best_metric = metrics[self.monitor]
-            self.counter = 0
-        else:
-            self.counter += 1
-            if self.counter >= self.patience:
-                return True
+    def forward(self, y_hat: torch.Tensor, y: torch.Tensor, ic: Optional[torch.Tensor] = None):
+        if ic is None: ic = torch.tensor(1., device=y.device)
         
-        return False
+        return torch.mean((y_hat - y) ** 2 / (ic + self.precision))
 
-def main():
-    seed = 1
-    batch_size = 256
-    epoch_size = 20
-    max_epoch = 400
-    device = "cuda"
+class PhysicsInformedLoss(nn.Module):
+    def __init__(self, feature: int):
+        super().__init__()
+        self.feature = feature
 
-    mc_steps = 32_768
-    # param_priors = {
-    #     "T": lambda size: torch.empty((size,), device=device).uniform_(0.1, 2.0),
-    #     "K": lambda size: torch.full((size,), 1., device=device), # np.random.normal(loc=1, scale=0.001, size=size)
-    #     "sigma": lambda size: torch.empty((size,), device=device).uniform_(0.05, 0.6),
-    #     "theta": lambda size: torch.normal(mean=-0.1, std=1.0, size=(size,), device=device).clamp_(-0.5, 0.2),
-    #     "kappa": lambda size: torch.empty((size,), device=device).uniform_(0.1, 2.0).exp_(),
-    # }
+    def forward(self, x: torch.Tensor, y_hat: torch.Tensor):
+        raise NotImplementedError
 
-    param_priors = {
-        "T": lambda size: torch.empty((size,), device=device).uniform_(0.1, 2.0),
-        "K": lambda size: torch.empty((size,), device=device).uniform_(0.8, 1.2), 
-        "sigma": lambda size: torch.empty((size,), device=device).uniform_(0.05, 0.6),
-        "theta": lambda size: torch.empty((size,), device=device).uniform_(-0.5, 0.05), 
-        "kappa": lambda size: torch.empty((size,), device=device).uniform_(0.1, 1.0), 
-    }
+class MonotonyLoss(PhysicsInformedLoss):
+    def __init__(self, feature: int, increasing: bool = True):
+        super().__init__(feature)
+        self.increasing = increasing
 
-    set_seed(seed)
+    def forward(self, x: torch.Tensor, y_hat: torch.Tensor, *, dx: Optional[torch.Tensor] = None):
+        if dx is None:
+            dx = torch.autograd.grad(
+                outputs=y_hat,
+                inputs=x,
+                grad_outputs=torch.ones_like(y_hat, device=y_hat.device),
+                create_graph=True,
+                retain_graph=True
+            )[0]
 
-    dataset = VGPricingDataset(**param_priors, mc_steps=mc_steps)
-    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
+            dx = dx[:, self.feature]
 
-    # ThresholdedWeightedMSE uses our MLE derived weighted MSE,
-    # it will easily reach +1e5 in early epochs, so gradient clipping
-    # is quite mandatory, see the training loop.
-    # It is mathematically sound however, and if minimized long enough,
-    # leads to a very good MARE. 
-    #
-    # TODO : Write a clean .md
+        return torch.mean((torch.clamp(dx, max=0.) if self.increasing else torch.clamp(dx, min=0.))**2)
 
-    # loss_fn = CombinedLoss([(torch.nn.MSELoss(), 1.)])
-    # loss_fn = CombinedLoss([(ThresholdedWeightedMSE(1e-8), 1.)])
-    # loss_fn = CombinedLoss([
-    #     (torch.nn.MSELoss(), 1.),
-    #     (MonotonyLoss(1, increasing=False), 1.),
-    #     (MonotonyLoss(0, increasing=True), 1.),
-    #     (ConvexityLoss(0, convex=True), 1.),
-    # ])
-    loss_fn = CombinedLoss([
-        (ThresholdedWeightedMSE(precision=1e-8), 1.),
-        (MonotonyLoss(1, increasing=False), 1.),
-        (MonotonyLoss(0, increasing=True), 1.),
-        (ConvexityLoss(1, convex=True), 1.),
-    ])
+class ConvexityLoss(PhysicsInformedLoss):
+    def __init__(self, feature: int, convex: bool = True):
+        super().__init__(feature)
+        self.convex = convex
 
-    # model = Linear(bias=False, device=device)
-    model = MLP(hidden_dim=64, depth=4, device=device)
+    def forward(self, x: torch.Tensor, y_hat: torch.Tensor, *, hx: Optional[torch.Tensor] = None):
+        if hx is None:
+            dx = torch.autograd.grad(
+                outputs=y_hat,
+                inputs=x,
+                grad_outputs=torch.ones_like(y_hat, device=y_hat.device),
+                create_graph=True,
+                retain_graph=True
+            )[0]
 
-    print(f"Model: {model.__class__.__name__}")
-    print(f"Learnable parameters : {sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)}")
+            hx = torch.autograd.grad(
+                outputs=dx,
+                inputs=x,
+                grad_outputs=torch.ones_like(dx, device=dx.device),
+                create_graph=True,
+                retain_graph=True
+            )[0]
 
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=5e-4,
-        weight_decay=1e-4,
-        betas=(0.9, 0.999),
-    )
+            hx = hx[:, self.feature]
 
-    scheduler = None
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(
-         optimizer,
-         max_lr=5e-3, 
-         steps_per_epoch=1,
-         epochs=max_epoch,
-         pct_start=0.3,
-         anneal_strategy="cos"
-     )
-
-    early_stopping = EarlyStopping(
-        patience=50,
-        monitor="loss",
-        mode="min",
-        delta=1e-5,
-    )
-
-    epoch = 0
-    train_losses = []
-    val_losses = []
-    learning_rates = []
-
-    while epoch < max_epoch:
-        epoch += 1
-
-        epoch_train_losses = []
-
-        model.train()
-        for batch, (x, y, ic) in enumerate(tqdm(loader, total=epoch_size, desc=f"Epoch {epoch}", postfix={
-            "train_loss": train_losses[-1] if train_losses else "?" ,
-            "val_loss": val_losses[-1] if val_losses else "?" ,
-        }, leave=False)):
-            if batch >= epoch_size:
-                break
-
-            x, y, ic = x.to(device), y.to(device), ic.to(device)
-        
-            x.requires_grad_()
-
-            optimizer.zero_grad()
-
-            y_hat = model(x)
-            loss = loss_fn(x, y_hat, y, ic)
-            loss.backward()
-
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
-
-            optimizer.step()
-
-            epoch_train_losses.append(loss.item())
-
-        train_losses.append(torch.mean(torch.tensor(epoch_train_losses)).item())
-        val_losses.append(evaluate(model, loss_fn, loader, device=device))
-
-        learning_rates.append(optimizer.param_groups[0]['lr'])
-
-        if scheduler is not None:
-            scheduler.step()
-
-        if early_stopping(metrics={ "loss": val_losses[-1] }):
-            print(f"Early stopping at epoch : {epoch}")
-            break
-    else:
-        print(f"Hit max epoch : {epoch}")
-
-    test_loss = evaluate(model, loss_fn, loader, device=device)
-    print(f"Loss : {train_losses[-1]:.5f} (train) | {val_losses[-1]:.5f} (val) | {test_loss:.5f} (test)")
-
-    print(f"Prior sampling time : {dataset.time_prior_sampling:.2f}s ({dataset.time_prior_sampling/dataset.samples:.8f}s/sample)")
-    print(f"VG sampling time    : {dataset.time_vg_sampling:.2f}s ({dataset.time_vg_sampling/dataset.samples:.8f}s/sample)")
-
-    plot_learning_curves(train_losses, val_losses, test_loss, learning_rates=learning_rates)
-
-    plot_model_evaluation(
-        dataset=dataset,
-        model=model,
-        parameter_labels=dataset.parameter_labels,
-        parameter_ranges=[[0.08, 2.0], [0.9, 1.1], [0.05, 0.6], [-0.2, 0.], [np.exp(0.01), np.exp(2.)]], 
-        parameter_values=[1., 1., 0.2, -0.1, np.exp(1.)],
-        n=1000,
-    )
-
-if __name__ == "__main__":
-    main()
+        return torch.mean((torch.clamp(hx, max=0.) if self.convex else torch.clamp(hx, min=0.))**2)
+    
