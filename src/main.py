@@ -19,7 +19,7 @@ from metrics import (
     LogMonotonyLoss,
     LogConvexityLoss
 )
-from models import Linear, MLP ,LogSpaceSoftplusMLP
+from models import Linear, MLP, LogSpaceSoftplusMLP
 from experiments import plot_model_evaluation, plot_learning_curves
 
 def set_seed(seed):
