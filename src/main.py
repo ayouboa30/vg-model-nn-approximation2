@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from cuda_vg import VGPricingDataset
 from metrics import ThresholdedWeightedMSE, MonotonyLoss, ConvexityLoss, CombinedLoss
-from models import Linear, MLP, ICNN
+from models import Linear, MLP, PICNN
 from experiments import plot_model_evaluation, plot_learning_curves
 
 def set_seed(seed):
@@ -122,7 +122,7 @@ def main():
     ])
 
     # model = Linear(bias=False, device=device)
-    model = ICNN(hidden_dim=1024, depth=4, device=device)
+    model = PICNN(hidden_dim=256, depth=5, device=device)
 
     print(f"Model: {model.__class__.__name__}")
     print(f"Learnable parameters : {sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)}")
