@@ -116,8 +116,8 @@ def main():
     # ])
     loss_fn = CombinedLoss([
         (ThresholdedWeightedMSE(precision=1e-4), 1.),
-        (MonotonyLoss(1, increasing=False), 5.),
-        (MonotonyLoss(0, increasing=True), 5.),
+        (MonotonyLoss(1, increasing=False), 1.),
+        (MonotonyLoss(0, increasing=True), 1.),
         (ConvexityLoss(1, convex=True), 15.),
     ])
     
