@@ -73,6 +73,15 @@ class CombinedLoss(nn.Module):
                 loss += weight * loss_fn(y_hat, y)
 
         return loss
+
+
+class RelativeMSE(WeightedLoss):
+    def __init__(self, epsilon: float = 1e-4) -> None:
+        super().__init__()
+        self.epsilon = epsilon
+
+    def forward(self, y_hat: torch.Tensor, y: torch.Tensor, ic: Optional[torch.Tensor] = None):
+        return torch.mean(((y_hat - y) / (y + self.epsilon)) ** 2)
     
 class WeightedLoss(nn.Module):
     def __init__(self) -> None:
