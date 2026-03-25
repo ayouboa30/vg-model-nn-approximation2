@@ -204,28 +204,29 @@ def main():
             optimizer.step()
 
             epoch_train_losses.append(loss.item())
+            
             if early_stopping(metrics={ "loss": val_losses[-1] }):
-            if not is_phase_2:
-                print(f"\n--- Fin de la Phase 1 (Burn-in) à l'epoch {epoch} ---")
-                print("--- Début de la Phase 2 (Physics-Informed) ---")
-
-                is_phase_2 = True
-                current_loss_fn = loss_fn_phase2
-
-                early_stopping = EarlyStopping(
-                    patience=50,
-                    monitor="loss",
-                    mode="min",
-                    delta=1e-5,
-                )
-
-                for param_group in optimizer.param_groups:
-                    param_group['lr'] = 1e-4 
-                scheduler = None 
-                
-            else:
-                print(f"Early stopping définitif à epoch : {epoch}")
-                break
+                if not is_phase_2:
+                    print(f"\n--- Fin de la Phase 1 (Burn-in) à l'epoch {epoch} ---")
+                    print("--- Début de la Phase 2 (Physics-Informed) ---")
+    
+                    is_phase_2 = True
+                    current_loss_fn = loss_fn_phase2
+    
+                    early_stopping = EarlyStopping(
+                        patience=50,
+                        monitor="loss",
+                        mode="min",
+                        delta=1e-5,
+                    )
+    
+                    for param_group in optimizer.param_groups:
+                        param_group['lr'] = 1e-4 
+                    scheduler = None 
+                    
+                else:
+                    print(f"Early stopping définitif à epoch : {epoch}")
+                    break
 
         train_losses.append(torch.mean(torch.tensor(epoch_train_losses)).item())
         val_losses.append(evaluate(model, current_loss_fn, loader, device=device))
