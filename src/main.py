@@ -247,17 +247,6 @@ def main():
                 break
             
             
-        train_losses.append(torch.mean(torch.tensor(epoch_train_losses)).item())
-        val_losses.append(evaluate(model, current_loss_fn, loader, device=device))
-
-        learning_rates.append(optimizer.param_groups[0]['lr'])
-
-        if scheduler is not None:
-            scheduler.step()
-
-        if early_stopping(metrics={ "loss": val_losses[-1] }):
-            print(f"Early stopping at epoch : {epoch}")
-            break
     else:
         print(f"Hit max epoch : {epoch}")
 
