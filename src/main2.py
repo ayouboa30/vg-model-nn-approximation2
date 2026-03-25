@@ -187,10 +187,10 @@ def main():
 
     model_mlp = MLP(hidden_dim=64, depth=4, device=device)
     loss_fn_mlp = CombinedLoss([
-        (ThresholdedWeightedMSE(precision=1e-4), 1.),
+        (ThresholdedWeightedMSE(precision=1e-8), 1.),
         (MonotonyLoss(1, increasing=False), 1.), # K décroissant
         (MonotonyLoss(0, increasing=True), 1.),  # T croissant
-        (ConvexityLoss(1, convex=True), 3.),     # Convexe en K
+        (ConvexityLoss(1, convex=True), 1.),     # Convexe en K
     ])
     
     train_mlp, val_mlp, test_mlp = train_model_experiment(
@@ -206,10 +206,10 @@ def main():
 
     model_log = LogSpaceSoftplusMLP(hidden_dim=64, depth=4, device=device)
     loss_fn_log = CombinedLoss([
-        (ExpThresholdedWeightedMSE(precision=1e-4), 1.), 
+        (ExpThresholdedWeightedMSE(precision=1e-8), 1.), 
         (LogMonotonyLoss(1, increasing=False), 1.),
         (LogMonotonyLoss(0, increasing=True), 1.),
-        (LogConvexityLoss(1, convex=True), 3.),
+        (LogConvexityLoss(1, convex=True), 1.),
     ])
     
     train_log, val_log, test_log = train_model_experiment(
