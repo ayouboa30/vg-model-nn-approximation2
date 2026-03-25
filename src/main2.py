@@ -20,8 +20,8 @@ from metrics import (
     LogConvexityLoss
 )
 
-# Assurez-vous que ces classes sont bien dans src/models.py
-from models import GeluMLP, LogSpaceSoftplusMLP
+# On importe votre MLP d'origine et le nouveau LogSpaceSoftplusMLP
+from models import MLP, LogSpaceSoftplusMLP
 
 def set_seed(seed):
     random.seed(seed)
@@ -44,8 +44,11 @@ def evaluate(
     x.requires_grad_()
 
     y_hat = model(x)
-    loss = loss_fn(x, y_hat, y, ic)
+    # Si le MLP original renvoie [B, 1] et y est [B], on s'assure d'aligner les dimensions
+    if y_hat.dim() > 1 and y_hat.shape[-1] == 1:
+        y_hat = y_hat.squeeze(-1)
 
+    loss = loss_fn(x, y_hat, y, ic)
     return loss.item()
 
 class EarlyStopping:
@@ -138,6 +141,11 @@ def train_model_experiment(
 
             optimizer.zero_grad()
             y_hat = model(x)
+            
+            # Ajustement dimensionnel pour le MLP original si nécessaire
+            if y_hat.dim() > 1 and y_hat.shape[-1] == 1:
+                y_hat = y_hat.squeeze(-1)
+                
             loss = loss_fn(x, y_hat, y, ic)
             loss.backward()
 
@@ -183,24 +191,25 @@ def main():
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
     # ==========================================
-    # EXPÉRIENCE 1 : GeLU MLP Classique
+    # EXPÉRIENCE 1 : Votre MLP Original
     # ==========================================
-    model_gelu = GeluMLP(hidden_dim=128, depth=4, device=device)
-    loss_fn_gelu = CombinedLoss([
+    # On utilise votre MLP tel que défini dans src/models.py
+    model_mlp = MLP(hidden_dim=128, depth=4, device=device)
+    loss_fn_mlp = CombinedLoss([
         (ThresholdedWeightedMSE(precision=1e-6), 1.),
         (MonotonyLoss(1, increasing=False), 1.), # K décroissant
         (MonotonyLoss(0, increasing=True), 1.),  # T croissant
         (ConvexityLoss(1, convex=True), 3.),     # Convexe en K
     ])
     
-    train_gelu, val_gelu, test_gelu = train_model_experiment(
-        model=model_gelu, 
-        loss_fn=loss_fn_gelu, 
+    train_mlp, val_mlp, test_mlp = train_model_experiment(
+        model=model_mlp, 
+        loss_fn=loss_fn_mlp, 
         loader=loader, 
         device=device, 
         max_epoch=max_epoch, 
         epoch_size=epoch_size,
-        experiment_name="GeLU MLP (Espace des prix)"
+        experiment_name="MLP Original (Softplus dans l'espace des prix)"
     )
 
     # ==========================================
@@ -229,14 +238,14 @@ def main():
     # ==========================================
     print(f"\n{'='*50}")
     print("RÉSUMÉ DES PERFORMANCES (Test Loss)")
-    print(f"GeLU MLP         : {test_gelu:.7f}")
+    print(f"MLP Original     : {test_mlp:.7f}")
     print(f"LogSpace Softplus: {test_log:.7f}")
     print(f"{'='*50}\n")
 
     # 1. Plot des courbes d'apprentissage comparées
     plt.figure(figsize=(12, 7))
-    plt.plot(train_gelu, label="GeLU - Train", linestyle=':', color='#1f77b4', linewidth=2)
-    plt.plot(val_gelu, label="GeLU - Val", linestyle='-', color='#1f77b4', linewidth=2)
+    plt.plot(train_mlp, label="MLP Original - Train", linestyle=':', color='#1f77b4', linewidth=2)
+    plt.plot(val_mlp, label="MLP Original - Val", linestyle='-', color='#1f77b4', linewidth=2)
     
     plt.plot(train_log, label="LogSpace - Train", linestyle=':', color='#2ca02c', linewidth=2)
     plt.plot(val_log, label="LogSpace - Val", linestyle='-', color='#2ca02c', linewidth=2)
@@ -244,23 +253,32 @@ def main():
     plt.yscale("log")
     plt.xlabel("Époques", fontsize=12)
     plt.ylabel("Combined Loss (Log Scale)", fontsize=12)
-    plt.title("Comparaison de convergence : GeLU vs LogSpace Softplus", fontsize=14, fontweight='bold')
+    plt.title("Comparaison de convergence : MLP Original vs LogSpace", fontsize=14, fontweight='bold')
     plt.legend(fontsize=11)
     plt.grid(True, which="both", ls="--", alpha=0.6)
     plt.tight_layout()
     plt.show()
 
     # 2. Plot des évaluations des surfaces de prix pour vérifier visuellement les contraintes
-    # Paramètres d'évaluation fixes
     eval_ranges = [[0.08, 2.0], [0.9, 1.1], [0.05, 0.6], [-0.2, 0.], [np.exp(0.01), np.exp(2.)]]
     eval_values = [1., 1., 0.2, -0.1, np.exp(1.)]
 
-    print("Génération des graphiques d'évaluation pour le GeLU MLP...")
-    # On ajoute un wrapper temporaire si nécessaire pour plot_model_evaluation, 
-    # car il s'attend à ce que le modèle sorte directement le prix.
+    print("Génération des graphiques d'évaluation pour le MLP Original...")
+    
+    # Wrapper pour gérer le squeeze(-1) si votre MLP original le nécessite dans plot_model_evaluation
+    class SqueezeWrapper(torch.nn.Module):
+        def __init__(self, base_model):
+            super().__init__()
+            self.base_model = base_model
+        def forward(self, x):
+            y_hat = self.base_model(x)
+            return y_hat.squeeze(-1) if y_hat.dim() > 1 else y_hat
+            
+    wrapped_mlp_model = SqueezeWrapper(model_mlp)
+
     plot_model_evaluation(
         dataset=dataset,
-        model=model_gelu,
+        model=wrapped_mlp_model,
         parameter_labels=dataset.parameter_labels,
         parameter_ranges=eval_ranges, 
         parameter_values=eval_values,
@@ -268,8 +286,6 @@ def main():
     )
 
     print("Génération des graphiques d'évaluation pour le LogSpace Softplus MLP...")
-    # Pour le modèle LogSpace, on doit créer un petit wrapper qui applique l'exponentielle
-    # pour que plot_model_evaluation dessine bien la surface des prix (et non des logs).
     class ExpWrapper(torch.nn.Module):
         def __init__(self, base_model):
             super().__init__()
