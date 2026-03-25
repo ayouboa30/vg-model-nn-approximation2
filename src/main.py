@@ -186,14 +186,12 @@ def main():
             if batch >= epoch_size:
                 break
 
-            x_norm = (x - mu) / (sigma + 1e-6)
-            x_norm.requires_grad_() 
+            x_norm = ((x - mu) / (sigma + 1e-6)).detach().requires_grad_(True)
         
             optimizer.zero_grad()
             y_hat = model(x_norm) 
             loss = current_loss_fn(x_norm, y_hat, y, ic)
 
-            optimizer.zero_grad()
             loss.backward()
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
