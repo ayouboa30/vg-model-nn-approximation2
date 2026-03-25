@@ -6,8 +6,6 @@ import math
 class Linear(nn.Linear):
     def __init__(self, bias: bool = True, device = None, dtype = None) -> None:
         super().__init__(5, 1, bias=bias, device=device, dtype=dtype)
-
-
     
 class MLP(nn.Module):
     def __init__(
@@ -24,12 +22,12 @@ class MLP(nn.Module):
         self.out_layer = nn.Linear(hidden_dim, 1, device=device, dtype=dtype)
 
     def forward(self, x: torch.Tensor):
-        x = nn.functional.softplus(self.in_layer(x))
+        x = nn.functional.gelu(self.in_layer(x))
 
         for layer in self.hid_layers:
-            x = nn.functional.softplus(layer(x))
+            x = nn.functional.gelu(layer(x))
         
-        return nn.functional.softplus(self.out_layer(x))
+        return self.out_layer(x)
 
 
 class GeluMLP(nn.Module):
