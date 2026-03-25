@@ -1,12 +1,6 @@
 import torch
-from torch import nn
 import torch.nn.functional as F
-import math
-
-class Linear(nn.Linear):
-    def __init__(self, bias: bool = True, device = None, dtype = None) -> None:
-        super().__init__(5, 1, bias=bias, device=device, dtype=dtype)
-
+from torch import nn
 
 class PositiveLinear(nn.Module):
     def __init__(self, in_features, out_features, device=None, dtype=None):
@@ -20,9 +14,7 @@ class PositiveLinear(nn.Module):
             nn.init.uniform_(self.V, -2.5, -1.0)
             nn.init.zeros_(self.bias)
     def forward(self, x):
-
-        positive_weight = F.softplus(self.V)
-        return nn.functional.linear(x, positive_weight, self.bias)
+        return nn.functional.linear(x, F.softplus(self.V), self.bias)
 
 class NegativeLinear(nn.Module):
     def __init__(self, in_features, out_features, device=None, dtype=None):
@@ -36,76 +28,7 @@ class NegativeLinear(nn.Module):
             nn.init.uniform_(self.V, -2.5, -1.0)
             nn.init.zeros_(self.bias)
     def forward(self, x):
-        negative_weight = -F.softplus(self.V)
-        return nn.functional.linear(x, negative_weight, self.bias)
-    
-class MLP(nn.Module):
-    def __init__(
-        self,
-        hidden_dim: int = 32,
-        depth: int = 3,
-        device = None,
-        dtype = None
-    ) -> None:
-        super().__init__()
-
-        self.in_layer = nn.Linear(5, hidden_dim, device=device, dtype=dtype)
-        self.hid_layers = nn.ModuleList([nn.Linear(hidden_dim, hidden_dim, device=device, dtype=dtype) for _ in range(depth - 2)])
-        self.out_layer = nn.Linear(hidden_dim, 1, device=device, dtype=dtype)
-
-    def forward(self, x: torch.Tensor):
-        x = nn.functional.softplus(self.in_layer(x))
-
-        for layer in self.hid_layers:
-            x = nn.functional.softplus(layer(x))
-        
-        return nn.functional.softplus(self.out_layer(x))
-
-
-
-
-
-class PICNN(nn.Module):
-    def __init__(self, hidden_dim=256, depth=5, device=None, dtype=None):
-        super().__init__()
-
-        self.u_layers = nn.ModuleList([
-            nn.Linear(4 if i == 0 else hidden_dim, hidden_dim, device=device, dtype=dtype)
-            for i in range(depth)
-        ])
-
-        self.x_layers = nn.ModuleList([
-            nn.Linear(1, hidden_dim, device=device, dtype=dtype) 
-            for _ in range(depth)
-        ])
-
-        self.z_layers = nn.ModuleList([
-            PositiveLinear(hidden_dim, hidden_dim, device=device, dtype=dtype) 
-            for _ in range(depth - 1)
-        ])
-
-        self.out_layer_z = PositiveLinear(hidden_dim, 1, device=device, dtype=dtype)
-        self.out_layer_x = nn.Linear(1, 1, device=device, dtype=dtype)
-        self.out_layer_u = nn.Linear(hidden_dim, 1, device=device, dtype=dtype)
-
-        self.act_z = nn.Softplus()
-        self.act_u = nn.GELU()     
-
-    def forward(self, inputs: torch.Tensor):
-        x_c = inputs[:, 1:2] 
-        
-        u = inputs[:, [0, 2, 3, 4]] 
-        u_hiddens = []
-        curr_u = u
-        for u_layer in self.u_layers:
-            curr_u = self.act_u(u_layer(curr_u))
-            u_hiddens.append(curr_u)
-        z = self.act_z(self.x_layers[0](x_c) + u_hiddens[0])
-        for i in range(len(self.z_layers)):
-            z_next = self.z_layers[i](z) + self.x_layers[i+1](x_c) + u_hiddens[i+1]
-            z = self.act_z(z_next)
-        output = self.out_layer_z(z) + self.out_layer_x(x_c) + self.out_layer_u(u_hiddens[-1])
-        return F.softplus(output).squeeze(-1)
+        return nn.functional.linear(x, -F.softplus(self.V), self.bias)
 
 class ConstrainedPricingModel(nn.Module):
     def __init__(self, hidden_dim=64, depth=4, device=None, dtype=None):
@@ -184,4 +107,21 @@ class ConstrainedPricingModel(nn.Module):
             z = self.act_z(z_next)
 
         output = self.out_Z(z) + self.out_K(k) + self.out_T(t_hiddens[-1]) + self.out_U(u_hiddens[-1])
-        return F.softplus(output).squeeze(-1) # F.softplus is increasing but not negative convex, so we can return directly or use softplus for price positivity
+        return output.squeeze(-1) # F.softplus is increasing but not negative convex, so we can return directly or use softplus for price positivity
+
+model = ConstrainedPricingModel()
+x = torch.rand(100, 5, requires_grad=True)
+y = model(x)
+
+grad_x = torch.autograd.grad(y.sum(), x, create_graph=True)[0]
+grad_t = grad_x[:, 0]
+grad_k = grad_x[:, 1]
+
+print("Is monotonically increasing in T? (grad >= 0):", (grad_t >= -1e-6).all().item())
+print("Is monotonically decreasing in K? (grad <= 0):", (grad_k <= 1e-6).all().item())
+
+grad_k_k = torch.autograd.grad(grad_k.sum(), x, retain_graph=True)[0][:, 1]
+print("Is convex in K? (2nd grad >= 0):", (grad_k_k >= -1e-6).all().item())
+
+grad_t_t = torch.autograd.grad(grad_t.sum(), x, retain_graph=True)[0][:, 0]
+print("Is convex in T? (We DON'T want this strictly enforced):", (grad_t_t >= -1e-6).all().item())
