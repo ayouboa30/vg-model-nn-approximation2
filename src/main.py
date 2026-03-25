@@ -125,7 +125,7 @@ def main():
 
     # Phase 2 : Précision + Fortes contraintes physiques
     loss_fn_phase2 = CombinedLoss([
-        (ThresholdedWeightedMSE(precision=1e-8), 1.),
+        (ThresholdedWeightedMSE(precision=1e-4), 1.),
         (MonotonyLoss(1, increasing=False), 10.0), # Fortement pénalisé
         (MonotonyLoss(0, increasing=True), 10.0),  # Fortement pénalisé
         (ConvexityLoss(1, convex=True), 0.),       # Géré par le PICNN
