@@ -114,12 +114,31 @@ def main():
     #     (MonotonyLoss(0, increasing=True), 1.),
     #     (ConvexityLoss(0, convex=True), 1.),
     # ])
-    loss_fn = CombinedLoss([
+    #loss_fn = CombinedLoss([
+     #   (ThresholdedWeightedMSE(precision=1e-8), 1.),
+      #  (MonotonyLoss(1, increasing=False), 10.),
+       # (MonotonyLoss(0, increasing=True), 10.),
+        #(ConvexityLoss(1, convex=True), 0.),
+    #])
+    # Phase 1 : Uniquement la précision (MSE)
+    loss_fn_phase1 = CombinedLoss([
         (ThresholdedWeightedMSE(precision=1e-8), 1.),
-        (MonotonyLoss(1, increasing=False), 10.),
-        (MonotonyLoss(0, increasing=True), 10.),
+        (MonotonyLoss(1, increasing=False), 0.0), # Désactivé
+        (MonotonyLoss(0, increasing=True), 0.0),  # Désactivé
         (ConvexityLoss(1, convex=True), 0.),
     ])
+
+    # Phase 2 : Précision + Fortes contraintes physiques
+    loss_fn_phase2 = CombinedLoss([
+        (ThresholdedWeightedMSE(precision=1e-8), 1.),
+        (MonotonyLoss(1, increasing=False), 10.0), # Fortement pénalisé
+        (MonotonyLoss(0, increasing=True), 10.0),  # Fortement pénalisé
+        (ConvexityLoss(1, convex=True), 0.),       # Géré par le PICNN
+    ])
+
+    # On démarre avec la Phase 1
+    current_loss_fn = loss_fn_phase1
+    is_phase_2 = False
 
     # model = Linear(bias=False, device=device)
     model = PICNN(hidden_dim=128, depth=5, device=device)
@@ -176,7 +195,8 @@ def main():
             optimizer.zero_grad()
 
             y_hat = model(x)
-            loss = loss_fn(x, y_hat, y, ic)
+            loss = current_loss_fn(x, y_hat, y, ic) 
+            
             loss.backward()
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
@@ -184,9 +204,31 @@ def main():
             optimizer.step()
 
             epoch_train_losses.append(loss.item())
+            if early_stopping(metrics={ "loss": val_losses[-1] }):
+            if not is_phase_2:
+                print(f"\n--- Fin de la Phase 1 (Burn-in) à l'epoch {epoch} ---")
+                print("--- Début de la Phase 2 (Physics-Informed) ---")
+
+                is_phase_2 = True
+                current_loss_fn = loss_fn_phase2
+
+                early_stopping = EarlyStopping(
+                    patience=50,
+                    monitor="loss",
+                    mode="min",
+                    delta=1e-5,
+                )
+
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = 1e-4 
+                scheduler = None 
+                
+            else:
+                print(f"Early stopping définitif à epoch : {epoch}")
+                break
 
         train_losses.append(torch.mean(torch.tensor(epoch_train_losses)).item())
-        val_losses.append(evaluate(model, loss_fn, loader, device=device))
+        val_losses.append(evaluate(model, current_loss_fn, loader, device=device))
 
         learning_rates.append(optimizer.param_groups[0]['lr'])
 
