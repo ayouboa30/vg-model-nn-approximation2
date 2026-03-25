@@ -71,7 +71,7 @@ class EarlyStopping:
 
 def main():
     seed = 1
-    batch_size = 128
+    batch_size = 256
     epoch_size = 20
     max_epoch = 800
     device = "cuda"
@@ -116,8 +116,8 @@ def main():
     # ])
     loss_fn = CombinedLoss([
         (ThresholdedWeightedMSE(precision=1e-8), 1.),
-        (MonotonyLoss(1, increasing=False), 1.),
-        (MonotonyLoss(0, increasing=True), 1.),
+        (MonotonyLoss(1, increasing=False), 10.),
+        (MonotonyLoss(0, increasing=True), 10.),
         (ConvexityLoss(1, convex=True), 0.),
     ])
 
