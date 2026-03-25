@@ -42,7 +42,7 @@ class GeluMLP(nn.Module):
         x = F.gelu(self.in_layer(x))
         for layer in self.hid_layers:
             x = F.gelu(layer(x))
-        return self.out_layer(x).squeeze(-1) 
+        return self.out_layer(x)
 
 class LogSpaceSoftplusMLP(nn.Module):
     """Modèle proposant g(x) = log(y) avec Softplus pour la lissité"""
