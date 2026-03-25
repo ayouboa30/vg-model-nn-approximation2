@@ -71,9 +71,9 @@ class EarlyStopping:
 
 def main():
     seed = 1
-    batch_size = 256
+    batch_size = 128
     epoch_size = 20
-    max_epoch = 400
+    max_epoch = 800
     device = "cuda"
 
     mc_steps = 32_768
@@ -122,14 +122,14 @@ def main():
     ])
 
     # model = Linear(bias=False, device=device)
-    model = PICNN(hidden_dim=256, depth=5, device=device)
+    model = PICNN(hidden_dim=128, depth=5, device=device)
 
     print(f"Model: {model.__class__.__name__}")
     print(f"Learnable parameters : {sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)}")
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=5e-2,
+        lr=5e-3,
         weight_decay=1e-4,
         betas=(0.9, 0.999),
     )
@@ -137,7 +137,7 @@ def main():
     scheduler = None
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
          optimizer,
-         max_lr=3e-4, 
+         max_lr=5e-4, 
          steps_per_epoch=1,
          epochs=max_epoch,
          pct_start=0.3,
@@ -145,7 +145,7 @@ def main():
      )
 
     early_stopping = EarlyStopping(
-        patience=50,
+        patience=80,
         monitor="loss",
         mode="min",
         delta=1e-5,
