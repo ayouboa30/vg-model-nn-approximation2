@@ -129,7 +129,7 @@ def main():
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=3e-4,
+        lr=5e-2,
         weight_decay=1e-4,
         betas=(0.9, 0.999),
     )
