@@ -19,7 +19,7 @@ from metrics import (
     LogMonotonyLoss,
     LogConvexityLoss
 )
-from models import Linear, MLP,PICNN, ConstrainedPricingModel
+from models import Linear, MLP ,LogSpaceSoftplusMLP
 from experiments import plot_model_evaluation, plot_learning_curves
 
 def set_seed(seed):
@@ -122,6 +122,15 @@ def main():
     #     (MonotonyLoss(0, increasing=True), 1.),
     #     (ConvexityLoss(0, convex=True), 1.),
     # ])
+
+    model = LogSpaceSoftplusMLP(hidden_dim=64, depth=4, device=device)
+    loss_fn = CombinedLoss([
+        (ExpThresholdedWeightedMSE(precision=1e-8), 1.), 
+        (LogMonotonyLoss(1, increasing=False), 1.),
+        (LogMonotonyLoss(0, increasing=True), 1.),
+        (LogConvexityLoss(1, convex=True), 1.),
+     ])
+    """
     loss_fn = CombinedLoss([
         (ThresholdedWeightedMSE(precision=1e-6), 1.),
         (MonotonyLoss(1, increasing=False), 1.),
@@ -131,7 +140,7 @@ def main():
     
 
     # model = Linear(bias=False, device=device)
-    model = MLP(hidden_dim=128, depth=4, device=device)
+    model = MLP(hidden_dim=128, depth=4, device=device)"""
 
     print(f"Model: {model.__class__.__name__}")
     print(f"Learnable parameters : {sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)}")
