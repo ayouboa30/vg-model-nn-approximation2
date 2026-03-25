@@ -118,7 +118,7 @@ def main():
         (RelativeMSE(epsilon=1e-6), 1.),
         (MonotonyLoss(1, increasing=False), 1.),
         (MonotonyLoss(0, increasing=True), 10.),
-        (ConvexityLoss(1, convex=True), 1.),
+        (ConvexityLoss(1, convex=True), 10.),
     ])
     
 
