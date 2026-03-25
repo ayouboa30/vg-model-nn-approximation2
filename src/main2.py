@@ -42,8 +42,7 @@ def evaluate(
     x.requires_grad_()
 
     y_hat = model(x)
-    if y_hat.dim() > 1 and y_hat.shape[-1] == 1:
-        y_hat = y_hat.squeeze(-1)
+    y_hat = y_hat.view_as(y)
 
     loss = loss_fn(x, y_hat, y, ic)
     return loss.item()
@@ -138,8 +137,8 @@ def train_model_experiment(
 
             optimizer.zero_grad()
             y_hat = model(x)
-            if y_hat.dim() > 1 and y_hat.shape[-1] == 1:
-                y_hat = y_hat.squeeze(-1)
+            
+            y_hat = y_hat.view_as(y) 
                 
             loss = loss_fn(x, y_hat, y, ic)
             loss.backward()
