@@ -22,21 +22,16 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-def evaluate(
-    model: torch.nn.Module,
-    loss_fn: CombinedLoss,
-    loader: torch.utils.data.DataLoader,
-    device: Optional[torch.device] = None,
-):
+def evaluate(model, loss_fn, loader, device=None, mu=None, sigma=None):
     model.eval()
-    
     x, y, ic = next(iter(loader))
     x, y, ic = x.to(device), y.to(device), ic.to(device)
-    x.requires_grad_()
 
-    y_hat = model(x)
-    loss = loss_fn(x, y_hat, y, ic)
+    x_norm = (x - mu) / (sigma + 1e-6)
+    x_norm = x_norm.detach().requires_grad_(True)
 
+    y_hat = model(x_norm)
+    loss = loss_fn(x_norm, y_hat, y, ic)
     return loss.item()
 
 class EarlyStopping:
