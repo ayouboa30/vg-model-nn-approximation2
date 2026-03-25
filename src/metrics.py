@@ -132,20 +132,21 @@ class ConvexityLoss(PhysicsInformedLoss):
             dx = torch.autograd.grad(
                 outputs=y_hat,
                 inputs=x,
-                grad_outputs=torch.ones_like(y_hat, device=y_hat.device),
+                grad_outputs=torch.ones_like(y_hat),
                 create_graph=True,
                 retain_graph=True
             )[0]
 
-            hx = torch.autograd.grad(
-                outputs=dx,
+            d1 = dx[:, self.feature]
+            d2 = torch.autograd.grad(
+                outputs=d1,
                 inputs=x,
-                grad_outputs=torch.ones_like(dx, device=dx.device),
+                grad_outputs=torch.ones_like(d1),
                 create_graph=True,
                 retain_graph=True
             )[0]
 
-            hx = hx[:, self.feature]
+            hx = d2[:, self.feature]
 
         return torch.mean((torch.clamp(hx, max=0.) if self.convex else torch.clamp(hx, min=0.))**2)
 
