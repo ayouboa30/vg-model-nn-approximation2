@@ -16,11 +16,9 @@ class PositiveLinear(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        nn.init.kaiming_uniform_(self.V, a=math.sqrt(5))
-
         with torch.no_grad():
-            self.V.data.normal_(0, 0.1)
-
+            nn.init.uniform_(self.V, -4.0, -2.0)
+            nn.init.zeros_(self.bias)
     def forward(self, x):
 
         positive_weight = F.softplus(self.V)
