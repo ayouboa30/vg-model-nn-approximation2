@@ -122,7 +122,7 @@ def main():
     #])
     # Phase 1 : Uniquement la précision (MSE)
     loss_fn_phase1 = CombinedLoss([
-        (ThresholdedWeightedMSE(precision=1e-8), 1.),
+        (torch.nn.MSELoss(), 1.),
         (MonotonyLoss(1, increasing=False), 0.0), # Désactivé
         (MonotonyLoss(0, increasing=True), 0.0),  # Désactivé
         (ConvexityLoss(1, convex=True), 0.),
