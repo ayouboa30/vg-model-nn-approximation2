@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from cuda_vg import VGPricingDataset
 from metrics import ThresholdedWeightedMSE, MonotonyLoss, ConvexityLoss, CombinedLoss, RelativeMSE
-from models import Linear, MLP,PICNN
+from models import Linear, MLP,PICNN, ConstrainedPricingModel
 from experiments import plot_model_evaluation, plot_learning_curves
 
 def set_seed(seed):
