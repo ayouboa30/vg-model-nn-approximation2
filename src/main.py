@@ -115,7 +115,7 @@ def main():
     #     (ConvexityLoss(0, convex=True), 1.),
     # ])
     loss_fn = CombinedLoss([
-        (ThresholdedWeightedMSE(precision=1e-4), 1.),
+        (ThresholdedWeightedMSE(precision=1e-6), 1.),
         #(MonotonyLoss(1, increasing=False), 1.),
         #(MonotonyLoss(0, increasing=True), 1.),
         #(ConvexityLoss(1, convex=True), 15.),
@@ -123,7 +123,7 @@ def main():
     
 
     # model = Linear(bias=False, device=device)
-    model = ConstrainedPricingModel(hidden_dim=64, depth=4, device=device)
+    model = ConstrainedPricingModel(hidden_dim=128, depth=4, device=device)
 
     print(f"Model: {model.__class__.__name__}")
     print(f"Learnable parameters : {sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)}")
