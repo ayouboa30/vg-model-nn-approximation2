@@ -175,13 +175,13 @@ def main():
     val_losses = []
     learning_rates = []
 
-    while epoch < max_epoch:
+   while epoch < max_epoch:
         epoch += 1
-
         epoch_train_losses = []
 
         model.train()
         for batch, (x, y, ic) in enumerate(tqdm(loader, total=epoch_size, desc=f"Epoch {epoch}", postfix={
+            "phase": "2" if is_phase_2 else "1",
             "train_loss": train_losses[-1] if train_losses else "?" ,
             "val_loss": val_losses[-1] if val_losses else "?" ,
         }, leave=False)):
@@ -189,45 +189,63 @@ def main():
                 break
 
             x, y, ic = x.to(device), y.to(device), ic.to(device)
-        
             x.requires_grad_()
 
             optimizer.zero_grad()
 
-            y_hat = model(x)
-            loss = current_loss_fn(x, y_hat, y, ic) 
+            # y_hat doit être (batch_size,) pour matcher y
+            y_hat = model(x) 
             
+            # Calcul de la loss courante (Phase 1 ou 2)
+            loss = current_loss_fn(x, y_hat, y, ic)
             loss.backward()
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
-
             optimizer.step()
 
             epoch_train_losses.append(loss.item())
-            
-            if early_stopping(metrics={ "loss": val_losses[-1] }):
-                if not is_phase_2:
-                    print(f"\n--- Fin de la Phase 1 (Burn-in) à l'epoch {epoch} ---")
-                    print("--- Début de la Phase 2 (Physics-Informed) ---")
-    
-                    is_phase_2 = True
-                    current_loss_fn = loss_fn_phase2
-    
-                    early_stopping = EarlyStopping(
-                        patience=50,
-                        monitor="loss",
-                        mode="min",
-                        delta=1e-5,
-                    )
-    
-                    for param_group in optimizer.param_groups:
-                        param_group['lr'] = 1e-4 
-                    scheduler = None 
-                    
-                else:
-                    print(f"Early stopping définitif à epoch : {epoch}")
-                    break
 
+        # Fin d'époque : Calcul des métriques
+        avg_train_loss = torch.mean(torch.tensor(epoch_train_losses)).item()
+        train_losses.append(avg_train_loss)
+        
+        # Évaluation sur le set de validation
+        current_val_loss = evaluate(model, current_loss_fn, loader, device=device)
+        val_losses.append(current_val_loss)
+
+        learning_rates.append(optimizer.param_groups[0]['lr'])
+
+        if scheduler is not None:
+            scheduler.step()
+
+        # --- Logique d'Early Stopping et Transition de Phase ---
+        if early_stopping(metrics={"loss": current_val_loss}):
+            if not is_phase_2:
+                print(f"\n[Phase 1 terminée à l'epoch {epoch}] Convergence MSE atteinte.")
+                print("--> Passage en Phase 2 : Activation des contraintes de monotonie.")
+                
+                # 1. Changement de configuration
+                is_phase_2 = True
+                current_loss_fn = loss_fn_phase2
+                
+                # 2. Réinitialisation de l'Early Stopping (Crucial pour éviter Index Error / Stagnation)
+                early_stopping = EarlyStopping(
+                    patience=50,
+                    monitor="loss",
+                    mode="min",
+                    delta=1e-5,
+                )
+                
+                # 3. Passage en mode "Fine-tuning" : LR plus faible et stable
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = 1e-4 
+                scheduler = None # On arrête le OneCycleLR
+                
+            else:
+                print(f"Early stopping définitif à l'epoch : {epoch}")
+                break
+            
+            
         train_losses.append(torch.mean(torch.tensor(epoch_train_losses)).item())
         val_losses.append(evaluate(model, current_loss_fn, loader, device=device))
 
