@@ -62,6 +62,10 @@ class ICNN(nn.Module):
         ])
 
         self.out_layer = PositiveLinear(hidden_dim, 1, device=device, dtype=dtype)
+        
+        # NOUVEAU : Skip connection directe de l'entrée x vers la sortie
+        # (Couche linéaire classique, pas besoin de PositiveLinear)
+        self.skip_x_to_out = nn.Linear(5, 1, device=device, dtype=dtype)
 
         self.act = nn.CELU(alpha=1.0)
 
@@ -69,4 +73,7 @@ class ICNN(nn.Module):
         z = self.act(self.x_layers[0](x))
         for i in range(len(self.z_layers)):
             z = self.act(self.z_layers[i](z) + self.x_layers[i+1](x))
-        return F.softplus(self.out_layer(z))
+            
+        # MODIFIÉ : On ajoute la projection directe de x avant le softplus final
+        output = self.out_layer(z) + self.skip_x_to_out(x)
+        return F.softplus(output)
