@@ -111,7 +111,7 @@ def train_model_experiment(
      )
 
     early_stopping = EarlyStopping(
-        patience=75,
+        patience=50,
         monitor="loss",
         mode="min",
         delta=1e-5,
@@ -166,7 +166,7 @@ def train_model_experiment(
 def main():
     seed = 1
     batch_size = 256
-    epoch_size = 50
+    epoch_size = 20
     max_epoch = 400
     device = "cuda" if torch.cuda.is_available() else "cpu"
     mc_steps = 32_768
