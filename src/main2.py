@@ -185,7 +185,7 @@ def main():
     dataset = VGPricingDataset(**param_priors, mc_steps=mc_steps)
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
-    model_mlp = MLP(hidden_dim=128, depth=4, device=device)
+    model_mlp = MLP(hidden_dim=64, depth=4, device=device)
     loss_fn_mlp = CombinedLoss([
         (ThresholdedWeightedMSE(precision=1e-4), 1.),
         (MonotonyLoss(1, increasing=False), 1.), # K décroissant
@@ -204,7 +204,7 @@ def main():
     )
 
 
-    model_log = LogSpaceSoftplusMLP(hidden_dim=128, depth=4, device=device)
+    model_log = LogSpaceSoftplusMLP(hidden_dim=64, depth=4, device=device)
     loss_fn_log = CombinedLoss([
         (ExpThresholdedWeightedMSE(precision=1e-4), 1.), 
         (LogMonotonyLoss(1, increasing=False), 1.),
