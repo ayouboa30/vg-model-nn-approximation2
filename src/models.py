@@ -17,8 +17,11 @@ class PositiveLinear(nn.Module):
 
     def reset_parameters(self):
         with torch.no_grad():
-            nn.init.uniform_(self.V, -2.5, -2.2) 
-            nn.init.zeros_(self.bias)
+
+            nn.init.uniform_(self.V, -4.0, -2.0)
+            fan_in = self.V.size(1)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0.1
+            nn.init.uniform_(self.bias, -bound, bound)
     def forward(self, x):
 
         positive_weight = F.softplus(self.V)
@@ -33,8 +36,11 @@ class NegativeLinear(nn.Module):
 
     def reset_parameters(self):
         with torch.no_grad():
-            nn.init.uniform_(self.V, -2.5, -2.2) 
-            nn.init.zeros_(self.bias)
+
+            nn.init.uniform_(self.V, -4.0, -2.0)
+            fan_in = self.V.size(1)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0.1
+            nn.init.uniform_(self.bias, -bound, bound)
     def forward(self, x):
         negative_weight = -F.softplus(self.V)
         return nn.functional.linear(x, negative_weight, self.bias)
