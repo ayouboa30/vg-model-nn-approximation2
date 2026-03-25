@@ -73,7 +73,7 @@ def main():
     seed = 1
     batch_size = 256
     epoch_size = 20
-    max_epoch = 400
+    max_epoch = 100
     device = "cuda"
 
     mc_steps = 32_768
@@ -116,9 +116,9 @@ def main():
     # ])
     loss_fn = CombinedLoss([
         (ThresholdedWeightedMSE(precision=1e-4), 1.),
-        (MonotonyLoss(1, increasing=False), 1.),
-        (MonotonyLoss(0, increasing=True), 10.),
-        (ConvexityLoss(1, convex=True), 10.),
+        (MonotonyLoss(1, increasing=False), 5.),
+        (MonotonyLoss(0, increasing=True), 5.),
+        (ConvexityLoss(1, convex=True), 15.),
     ])
     
 
