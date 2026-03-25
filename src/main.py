@@ -115,7 +115,7 @@ def main():
     #     (ConvexityLoss(0, convex=True), 1.),
     # ])
     loss_fn = CombinedLoss([
-        (RelativeMSE(epsilon=1e-5), 1.),
+        (ThresholdedWeightedMSE(epsilon=1e-4), 1.),
         (MonotonyLoss(1, increasing=False), 1.),
         (MonotonyLoss(0, increasing=True), 10.),
         (ConvexityLoss(1, convex=True), 10.),
