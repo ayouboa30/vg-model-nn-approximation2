@@ -156,7 +156,7 @@ def main():
     scheduler = None
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
          optimizer,
-         max_lr=5e-4, 
+         max_lr=1e-2, 
          steps_per_epoch=1,
          epochs=max_epoch,
          pct_start=0.3,
