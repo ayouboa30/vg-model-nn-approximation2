@@ -71,9 +71,9 @@ class EarlyStopping:
 
 def main():
     seed = 1
-    batch_size = 512
-    epoch_size = 200
-    max_epoch = 1000
+    batch_size = 256
+    epoch_size = 20
+    max_epoch = 100
     device = "cuda"
 
     mc_steps = 32_768
@@ -117,12 +117,12 @@ def main():
     loss_fn = CombinedLoss([
         (ThresholdedWeightedMSE(precision=1e-8), 1.),
         (MonotonyLoss(1, increasing=False), 0.01),
-        (MonotonyLoss(0, increasing=True), 0.07),
+        (MonotonyLoss(0, increasing=True), 0.01),
         (ConvexityLoss(1, convex=True), 0.),
     ])
 
     # model = Linear(bias=False, device=device)
-    model = ICNN(hidden_dim=256, depth=5, device=device)
+    model = ICNN(hidden_dim=64, depth=3, device=device)
 
     print(f"Model: {model.__class__.__name__}")
     print(f"Learnable parameters : {sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)}")
