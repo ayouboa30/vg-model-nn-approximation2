@@ -261,7 +261,7 @@ def main():
     else:
         print(f"Hit max epoch : {epoch}")
 
-    test_loss = evaluate(model, loss_fn, loader, device=device)
+    test_loss = evaluate(model, current_loss_fn, loader, device=device)
     print(f"Loss : {train_losses[-1]:.5f} (train) | {val_losses[-1]:.5f} (val) | {test_loss:.5f} (test)")
 
     print(f"Prior sampling time : {dataset.time_prior_sampling:.2f}s ({dataset.time_prior_sampling/dataset.samples:.8f}s/sample)")
