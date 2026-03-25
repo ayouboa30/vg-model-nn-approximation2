@@ -72,7 +72,7 @@ class EarlyStopping:
 def main():
     seed = 1
     batch_size = 256
-    epoch_size = 20
+    epoch_size = 50
     max_epoch = 400
     device = "cuda"
 
@@ -146,7 +146,7 @@ def main():
      )
 
     early_stopping = EarlyStopping(
-        patience=50,
+        patience=75,
         monitor="loss",
         mode="min",
         delta=1e-5,
