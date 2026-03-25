@@ -10,8 +10,8 @@ import numpy as np
 from tqdm import tqdm
 
 from cuda_vg import VGPricingDataset
-from metrics import ThresholdedWeightedMSE, MonotonyLoss, ConvexityLoss, CombinedLoss, RelativeMSE
-from models import Linear, MLP,PICNN
+from metrics import ThresholdedWeightedMSE, MonotonyLoss, ConvexityLoss, CombinedLoss
+from models import Linear, MLP, PICNN, ConstrainedPricingModel
 from experiments import plot_model_evaluation, plot_learning_curves
 
 def set_seed(seed):
@@ -115,12 +115,11 @@ def main():
     #     (ConvexityLoss(0, convex=True), 1.),
     # ])
     loss_fn = CombinedLoss([
-        (ThresholdedWeightedMSE(precision=1e-4), 1.),
+        (ThresholdedWeightedMSE(precision=1e-8), 1.),
         (MonotonyLoss(1, increasing=False), 1.),
-        (MonotonyLoss(0, increasing=True), 1.),
-        (ConvexityLoss(1, convex=True), 15.),
+        (MonotonyLoss(0, increasing=True), 10.),
+        (ConvexityLoss(1, convex=True), 1.),
     ])
-    
 
     # model = Linear(bias=False, device=device)
     model = ConstrainedPricingModel(hidden_dim=64, depth=4, device=device)
