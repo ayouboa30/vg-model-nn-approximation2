@@ -73,7 +73,7 @@ class PICNN(nn.Module):
         self.out_layer_x = nn.Linear(1, 1, device=device, dtype=dtype)
         self.out_layer_u = nn.Linear(hidden_dim, 1, device=device, dtype=dtype)
 
-        self.act_z = nn.CELU(alpha=1.0)
+        self.act_z = nn.Softplus()
         self.act_u = nn.GELU()     
 
     def forward(self, inputs: torch.Tensor):
