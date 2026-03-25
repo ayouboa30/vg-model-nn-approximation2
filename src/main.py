@@ -73,7 +73,7 @@ def main():
     seed = 1
     batch_size = 256
     epoch_size = 20
-    max_epoch = 100
+    max_epoch = 400
     device = "cuda"
 
     mc_steps = 32_768
@@ -122,7 +122,7 @@ def main():
     ])
 
     # model = Linear(bias=False, device=device)
-    model = ICNN(hidden_dim=128, depth=4, device=device)
+    model = ICNN(hidden_dim=1024, depth=4, device=device)
 
     print(f"Model: {model.__class__.__name__}")
     print(f"Learnable parameters : {sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)}")
