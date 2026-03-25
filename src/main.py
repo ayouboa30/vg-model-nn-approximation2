@@ -10,7 +10,15 @@ import numpy as np
 from tqdm import tqdm
 
 from cuda_vg import VGPricingDataset
-from metrics import ThresholdedWeightedMSE, MonotonyLoss, ConvexityLoss, CombinedLoss, RelativeMSE
+from metrics import (
+    CombinedLoss,
+    ThresholdedWeightedMSE,
+    MonotonyLoss,
+    ConvexityLoss,
+    ExpThresholdedWeightedMSE,
+    LogMonotonyLoss,
+    LogConvexityLoss
+)
 from models import Linear, MLP,PICNN, ConstrainedPricingModel
 from experiments import plot_model_evaluation, plot_learning_curves
 
