@@ -123,7 +123,7 @@ def main():
     
 
     # model = Linear(bias=False, device=device)
-    model = ConstrainedPricingModel(hidden_dim=64, depth=4, device=device)
+    model = ConstrainedPricingModel(hidden_dim=256, depth=5, device=device)
 
     print(f"Model: {model.__class__.__name__}")
     print(f"Learnable parameters : {sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)}")
