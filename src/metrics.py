@@ -90,7 +90,7 @@ class ThresholdedWeightedMSE(WeightedLoss):
     def forward(self, y_hat: torch.Tensor, y: torch.Tensor, ic: Optional[torch.Tensor] = None):
         if ic is None: ic = torch.tensor(1., device=y.device)
         
-        return torch.mean((y_hat - y) ** 2 / (ic + self.precision))
+        return torch.mean(((y_hat - y) ** 2 / (ic + self.precision)) * self.precision)
 
 class PhysicsInformedLoss(nn.Module):
     def __init__(self, feature: int):
