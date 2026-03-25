@@ -174,6 +174,8 @@ def main():
     train_losses = []
     val_losses = []
     learning_rates = []
+    mu = torch.tensor([1.05, 1.0, 0.325, -0.225, 0.55], device=device)
+    sigma = torch.tensor([0.55, 0.11, 0.16, 0.16, 0.26], device=device)
 
     while epoch < max_epoch:
        
@@ -189,16 +191,14 @@ def main():
             if batch >= epoch_size:
                 break
 
-            x, y, ic = x.to(device), y.to(device), ic.to(device)
-            x.requires_grad_()
+            x_norm = (x - mu) / (sigma + 1e-6)
+            x_norm.requires_grad_() # Très important pour les Physics Loss
+        
+            optimizer.zero_grad()
+            y_hat = model(x_norm) 
+            loss = current_loss_fn(x_norm, y_hat, y, ic)
 
             optimizer.zero_grad()
-
-            # y_hat doit être (batch_size,) pour matcher y
-            y_hat = model(x) 
-            
-            # Calcul de la loss courante (Phase 1 ou 2)
-            loss = current_loss_fn(x, y_hat, y, ic)
             loss.backward()
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
