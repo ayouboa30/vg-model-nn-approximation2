@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 from cuda_vg import VGPricingDataset
 from experiments import plot_model_evaluation
 
-# Assurez-vous que ces classes sont bien dans src/metrics.py
 from metrics import (
     CombinedLoss,
     ThresholdedWeightedMSE,
@@ -20,7 +19,6 @@ from metrics import (
     LogConvexityLoss
 )
 
-# On importe votre MLP d'origine et le nouveau LogSpaceSoftplusMLP
 from models import MLP, LogSpaceSoftplusMLP
 
 def set_seed(seed):
@@ -44,7 +42,6 @@ def evaluate(
     x.requires_grad_()
 
     y_hat = model(x)
-    # Si le MLP original renvoie [B, 1] et y est [B], on s'assure d'aligner les dimensions
     if y_hat.dim() > 1 and y_hat.shape[-1] == 1:
         y_hat = y_hat.squeeze(-1)
 
@@ -141,8 +138,6 @@ def train_model_experiment(
 
             optimizer.zero_grad()
             y_hat = model(x)
-            
-            # Ajustement dimensionnel pour le MLP original si nécessaire
             if y_hat.dim() > 1 and y_hat.shape[-1] == 1:
                 y_hat = y_hat.squeeze(-1)
                 
@@ -190,13 +185,9 @@ def main():
     dataset = VGPricingDataset(**param_priors, mc_steps=mc_steps)
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
-    # ==========================================
-    # EXPÉRIENCE 1 : Votre MLP Original
-    # ==========================================
-    # On utilise votre MLP tel que défini dans src/models.py
     model_mlp = MLP(hidden_dim=128, depth=4, device=device)
     loss_fn_mlp = CombinedLoss([
-        (ThresholdedWeightedMSE(precision=1e-6), 1.),
+        (ThresholdedWeightedMSE(precision=1e-4), 1.),
         (MonotonyLoss(1, increasing=False), 1.), # K décroissant
         (MonotonyLoss(0, increasing=True), 1.),  # T croissant
         (ConvexityLoss(1, convex=True), 3.),     # Convexe en K
@@ -212,12 +203,10 @@ def main():
         experiment_name="MLP Original (Softplus dans l'espace des prix)"
     )
 
-    # ==========================================
-    # EXPÉRIENCE 2 : LogSpace Softplus MLP
-    # ==========================================
+
     model_log = LogSpaceSoftplusMLP(hidden_dim=128, depth=4, device=device)
     loss_fn_log = CombinedLoss([
-        (ExpThresholdedWeightedMSE(precision=1e-6), 1.), 
+        (ExpThresholdedWeightedMSE(precision=1e-4), 1.), 
         (LogMonotonyLoss(1, increasing=False), 1.),
         (LogMonotonyLoss(0, increasing=True), 1.),
         (LogConvexityLoss(1, convex=True), 3.),
@@ -259,13 +248,11 @@ def main():
     plt.tight_layout()
     plt.show()
 
-    # 2. Plot des évaluations des surfaces de prix pour vérifier visuellement les contraintes
     eval_ranges = [[0.08, 2.0], [0.9, 1.1], [0.05, 0.6], [-0.2, 0.], [np.exp(0.01), np.exp(2.)]]
     eval_values = [1., 1., 0.2, -0.1, np.exp(1.)]
 
     print("Génération des graphiques d'évaluation pour le MLP Original...")
     
-    # Wrapper pour gérer le squeeze(-1) si votre MLP original le nécessite dans plot_model_evaluation
     class SqueezeWrapper(torch.nn.Module):
         def __init__(self, base_model):
             super().__init__()
