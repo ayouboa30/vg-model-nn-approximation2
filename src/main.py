@@ -192,7 +192,7 @@ def main():
                 break
 
             x_norm = (x - mu) / (sigma + 1e-6)
-            x_norm.requires_grad_() # Très important pour les Physics Loss
+            x_norm.requires_grad_() 
         
             optimizer.zero_grad()
             y_hat = model(x_norm) 
