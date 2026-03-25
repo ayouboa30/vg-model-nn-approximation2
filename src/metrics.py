@@ -24,7 +24,7 @@ class CombinedLoss(nn.Module):
             if isinstance(loss_fn, PhysicsInformedLoss):
                 signature = inspect.signature(loss_fn)
                 requires_dx = "dx" in signature.parameters.keys()
-                requires_hx = "dh" in signature.parameters.keys()
+                requires_hx = "hx" in signature.parameters.keys()
                 signed_losses.append((loss_fn, weight, requires_dx, requires_hx))
 
                 self.any_requires_dx = self.any_requires_dx or requires_dx
