@@ -175,7 +175,8 @@ def main():
     val_losses = []
     learning_rates = []
 
-   while epoch < max_epoch:
+    while epoch < max_epoch:
+       
         epoch += 1
         epoch_train_losses = []
 
