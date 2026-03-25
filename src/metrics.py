@@ -150,12 +150,46 @@ class ConvexityLoss(PhysicsInformedLoss):
         return torch.mean((torch.clamp(hx, max=0.) if self.convex else torch.clamp(hx, min=0.))**2)
 
 
-class RelativeMSE(WeightedLoss):
-    def __init__(self, epsilon: float = 1e-4) -> None:
+class ExpThresholdedWeightedMSE(WeightedLoss):
+    """Ramène la prédiction log(y) dans l'espace des prix pour calculer la MSE pondérée classique."""
+    def __init__(self, precision: float = 1e-4) -> None:
         super().__init__()
-        self.epsilon = epsilon
+        self.precision = precision
 
-    def forward(self, y_hat: torch.Tensor, y: torch.Tensor, ic: Optional[torch.Tensor] = None):
+    def forward(self, log_y_hat: torch.Tensor, y: torch.Tensor, ic: Optional[torch.Tensor] = None):
+        y_hat = torch.exp(log_y_hat) 
         if ic is None: ic = torch.tensor(1., device=y.device)
-        return torch.mean(((y_hat - y) / (ic + y + self.epsilon)) ** 2)
+        return torch.mean((y_hat - y) ** 2 / (ic + self.precision))
+
+class LogMonotonyLoss(PhysicsInformedLoss):
+    """Pénalise g' (car le signe de g' dicte la monotonie de exp(g))"""
+    def __init__(self, feature: int, increasing: bool = True):
+        super().__init__(feature)
+        self.increasing = increasing
+
+    def forward(self, x: torch.Tensor, log_y_hat: torch.Tensor, *, dx: Optional[torch.Tensor] = None, hx: Optional[torch.Tensor] = None):
+        if dx is None:
+            dx = torch.autograd.grad(outputs=log_y_hat, inputs=x, grad_outputs=torch.ones_like(log_y_hat), create_graph=True, retain_graph=True)[0]
+        
+        d1 = dx[:, self.feature]
+        return torch.mean((torch.clamp(d1, max=0.) if self.increasing else torch.clamp(d1, min=0.))**2)
+
+class LogConvexityLoss(PhysicsInformedLoss):
+    """Pénalise (g'' + (g')^2) < 0 (condition exacte de convexité pour exp(g))"""
+    def __init__(self, feature: int, convex: bool = True):
+        super().__init__(feature)
+        self.convex = convex
+
+    def forward(self, x: torch.Tensor, log_y_hat: torch.Tensor, *, dx: Optional[torch.Tensor] = None, hx: Optional[torch.Tensor] = None):
+        if dx is None:
+            dx = torch.autograd.grad(outputs=log_y_hat, inputs=x, grad_outputs=torch.ones_like(log_y_hat), create_graph=True, retain_graph=True)[0]
+        
+        d1 = dx[:, self.feature]
+        
+        d2 = torch.autograd.grad(outputs=d1, inputs=x, grad_outputs=torch.ones_like(d1), create_graph=True, retain_graph=True)[0]
+        d2 = d2[:, self.feature]
+
+        convexity_term = d2 + (d1 ** 2)
+        
+        return torch.mean((torch.clamp(convexity_term, max=0.) if self.convex else torch.clamp(convexity_term, min=0.))**2)
     
