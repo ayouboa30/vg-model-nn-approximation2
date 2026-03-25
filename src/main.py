@@ -122,7 +122,7 @@ def main():
     ])
 
     # model = Linear(bias=False, device=device)
-    model = ICNN(hidden_dim=64, depth=3, device=device)
+    model = ICNN(hidden_dim=128, depth=4, device=device)
 
     print(f"Model: {model.__class__.__name__}")
     print(f"Learnable parameters : {sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)}")
