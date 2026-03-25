@@ -90,4 +90,4 @@ class PICNN(nn.Module):
             z_next = self.z_layers[i](z) + self.x_layers[i+1](x_c) + u_hiddens[i+1]
             z = self.act_z(z_next)
         output = self.out_layer_z(z) + self.out_layer_x(x_c) + self.out_layer_u(u_hiddens[-1])
-        return F.softplus(output)
+        return F.softplus(output).squeeze(-1)
