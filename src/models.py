@@ -157,7 +157,7 @@ class ConstrainedPricingModel(nn.Module):
         self.out_U = nn.Linear(hidden_dim, 1, device=device, dtype=dtype)
 
         self.act_u = nn.GELU()
-        self.act_t = nn.Tanh()  # Tanh is strictly increasing but allows concavity
+        self.act_t = nn.Softplus()  # Tanh is strictly increasing but allows concavity
         self.act_z = nn.Softplus() # Softplus is convex and increasing
 
     def forward(self, inputs: torch.Tensor):
