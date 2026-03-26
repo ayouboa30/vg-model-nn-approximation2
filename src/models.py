@@ -56,4 +56,4 @@ class LogSpaceSoftplusMLP(nn.Module):
         x = F.softplus(self.in_layer(x))
         for layer in self.hid_layers:
             x = F.softplus(layer(x))
-        return self.out_layer(x) 
+        return torch.exp(self.out_layer(x))
