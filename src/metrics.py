@@ -152,13 +152,7 @@ class ConvexityLoss(PhysicsInformedLoss):
 
 
 class ExpThresholdedWeightedMSE(WeightedLoss):
-    """Ramène la prédiction log(y) dans l'espace des prix pour calculer la MSE pondérée classique."""
-    def __init__(self, precision: float = 1e-4) -> None:
-        super().__init__()
-        self.precision = precision
-
-    def forward(self, log_y_hat: torch.Tensor, y: torch.Tensor, ic: Optional[torch.Tensor] = None):
-        y_hat = torch.exp(log_y_hat) 
+    def forward(self, y_hat: torch.Tensor, y: torch.Tensor, ic: Optional[torch.Tensor] = None):
         if ic is None: ic = torch.tensor(1., device=y.device)
         return torch.mean((y_hat - y) ** 2 / (ic + self.precision))
 
