@@ -124,12 +124,19 @@ def main():
     # ])
 
     model = LogSpaceSoftplusMLP(hidden_dim=64, depth=4, device=device)
+    
+    # ON CHANGE TOUTES LES LOSSES POUR S'ADAPTER AU NOUVEAU MODÈLE
     loss_fn = CombinedLoss([
-        (ExpThresholdedWeightedMSE(precision=1e-8), 1.), 
-        (LogMonotonyLoss(1, increasing=False), 1.),
-        (LogMonotonyLoss(0, increasing=True), 1.),
-        (LogConvexityLoss(1, convex=True), 1.),
-     ])
+        # 1. On utilise la version SANS "Exp", et on passe la précision à 1e-4
+        (ThresholdedWeightedMSE(precision=1e-4), 1.), 
+        
+        # 2. On utilise la version classique de la Monotonie (sans "Log")
+        (MonotonyLoss(1, increasing=False), 1.),
+        (MonotonyLoss(0, increasing=True), 1.),
+        
+        # 3. On utilise la version classique de la Convexité (sans "Log")
+        (ConvexityLoss(1, convex=True), 1.),
+    ])
     """
     loss_fn = CombinedLoss([
         (ThresholdedWeightedMSE(precision=1e-6), 1.),
