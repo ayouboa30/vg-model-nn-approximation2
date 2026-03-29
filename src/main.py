@@ -85,13 +85,6 @@ def main():
     device = "cuda"
 
     mc_steps = 32_768
-    # param_priors = {
-    #     "T": lambda size: torch.empty((size,), device=device).uniform_(0.1, 2.0),
-    #     "K": lambda size: torch.full((size,), 1., device=device), # np.random.normal(loc=1, scale=0.001, size=size)
-    #     "sigma": lambda size: torch.empty((size,), device=device).uniform_(0.05, 0.6),
-    #     "theta": lambda size: torch.normal(mean=-0.1, std=1.0, size=(size,), device=device).clamp_(-0.5, 0.2),
-    #     "kappa": lambda size: torch.empty((size,), device=device).uniform_(0.1, 2.0).exp_(),
-    # }
 
     param_priors = {
         "T": lambda size: torch.empty((size,), device=device).uniform_(0.1, 2.0),
@@ -122,22 +115,6 @@ def main():
     #     (MonotonyLoss(0, increasing=True), 1.),
     #     (ConvexityLoss(0, convex=True), 1.),
     # ])
-
-    model = LogSpaceSoftplusMLP(hidden_dim=64, depth=4, device=device)
-    
-    # ON CHANGE TOUTES LES LOSSES POUR S'ADAPTER AU NOUVEAU MODÈLE
-    loss_fn = CombinedLoss([
-        # 1. On utilise la version SANS "Exp", et on passe la précision à 1e-4
-        (ThresholdedWeightedMSE(precision=1e-4), 1.), 
-        
-        # 2. On utilise la version classique de la Monotonie (sans "Log")
-        (MonotonyLoss(1, increasing=False), 1.),
-        (MonotonyLoss(0, increasing=True), 1.),
-        
-        # 3. On utilise la version classique de la Convexité (sans "Log")
-        (ConvexityLoss(1, convex=True), 1.),
-    ])
-    """
     loss_fn = CombinedLoss([
         (ThresholdedWeightedMSE(precision=1e-6), 1.),
         (MonotonyLoss(1, increasing=False), 1.),
@@ -147,7 +124,8 @@ def main():
     
 
     # model = Linear(bias=False, device=device)
-    model = MLP(hidden_dim=128, depth=4, device=device)"""
+    # model = MLP(hidden_dim=128, depth=4, device=device)
+    model = LogSpaceSoftplusMLP(hidden_dim=64, depth=4, device=device)
 
     print(f"Model: {model.__class__.__name__}")
     print(f"Learnable parameters : {sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)}")
