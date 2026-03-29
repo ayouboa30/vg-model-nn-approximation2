@@ -3,6 +3,7 @@
 
 #include <curand_uniform.h>
 
+#define BATCH_BLOCK_SIZE 8
 
 namespace device {
     __device__ inline float vg(    
@@ -53,19 +54,6 @@ __global__ void vg_process_kernel(
     state[id] = local_state;
 }
 
-__global__ void _batched_vg_pricing_martingale_constant_kernel(
-    float *omega,
-    float *sigma,
-    float *theta,
-    float *kappa,
-    int n
-) {
-    int id = threadIdx.x + blockIdx.x * blockDim.x;
-    if (id >= n) return;
-
-    omega[id] = logf(1.0f - theta[id] * kappa[id] - kappa[id] * sigma[id] * sigma[id] / 2.0f) / kappa[id];
-}
-
 __global__ void batched_vg_pricing_kernel(
     float *x_mc,
     float *T,
@@ -73,22 +61,39 @@ __global__ void batched_vg_pricing_kernel(
     float *sigma,
     float *theta,
     float *kappa,
-    float *omega,
     int mc_steps,
     int batch_size,
     curandState *state
 ) {
+    __shared__ float s_omega[BATCH_BLOCK_SIZE];
+    __shared__ float s_T[BATCH_BLOCK_SIZE];
+    __shared__ float s_K[BATCH_BLOCK_SIZE];
+    __shared__ float s_sigma[BATCH_BLOCK_SIZE];
+    __shared__ float s_theta[BATCH_BLOCK_SIZE];
+    __shared__ float s_kappa[BATCH_BLOCK_SIZE];
+
     /*
      * Note : Swapped for efficiency, samples from a same batch share parameters and
      * should be kept close in memory. The performance gain on my laptop is significant.
      */
     int sample_id = threadIdx.x + blockIdx.x * blockDim.x;
     int batch_id = threadIdx.y + blockIdx.y * blockDim.y;
+    int id = batch_id * mc_steps + sample_id;
+
+    if (threadIdx.x == 0 && sample_id < mc_steps && batch_id < batch_size) {
+        s_T[threadIdx.y] = T[batch_id];
+        s_K[threadIdx.y] = K[batch_id];
+        s_sigma[threadIdx.y] = sigma[batch_id];
+        s_theta[threadIdx.y] = theta[batch_id];
+        s_kappa[threadIdx.y] = kappa[batch_id];
+
+        s_omega[threadIdx.y] = logf(1.0f - s_theta[threadIdx.y] * s_kappa[threadIdx.y] - s_kappa[threadIdx.y] * s_sigma[threadIdx.y] * s_sigma[threadIdx.y] / 2.0f) / s_kappa[threadIdx.y];
+    }
+
+    __syncthreads();
 
     if (sample_id >= mc_steps) return;
     if (batch_id >= batch_size) return;
-
-    int id = batch_id * mc_steps + sample_id;
 
     /*
      * Note : `state` points to global memory, keeping the state local to the thread registers
@@ -96,9 +101,9 @@ __global__ void batched_vg_pricing_kernel(
      */
     curandState local_state = state[id];
 
-    x_mc[id] = device::vg(T[batch_id], sigma[batch_id], theta[batch_id], kappa[batch_id], &local_state);
-    x_mc[id] = expf(omega[batch_id] * T[batch_id] + x_mc[id]);
-    x_mc[id] = x_mc[id] - K[batch_id];
+    x_mc[id] = device::vg(s_T[threadIdx.y], s_sigma[threadIdx.y], s_theta[threadIdx.y], s_kappa[threadIdx.y], &local_state);
+    x_mc[id] = expf(s_omega[threadIdx.y] * s_T[threadIdx.y] + x_mc[id]);
+    x_mc[id] = x_mc[id] - s_K[threadIdx.y];
     x_mc[id] = fmaxf(x_mc[id], 0.0f);
 
     state[id] = local_state;
@@ -143,17 +148,9 @@ extern "C" {
     ) {
         if (mc_steps * batch_size > state->n) return;
 
-        float* omega;
-        CUDA_CHECK(cudaMalloc((void**)&omega, batch_size * sizeof(float)));
-
-        int tpb_omega = 256;
-        int blocks_omega = (batch_size + tpb_omega - 1) / tpb_omega;
-
-        _batched_vg_pricing_martingale_constant_kernel<<<blocks_omega, tpb_omega>>>(omega, sigma, theta, kappa, batch_size);
-
         dim3 threadsPerBlock;
         threadsPerBlock.x = 32;
-        threadsPerBlock.y = 8;
+        threadsPerBlock.y = BATCH_BLOCK_SIZE;
         threadsPerBlock.z = 1;
 
         dim3 blocks;
@@ -161,9 +158,7 @@ extern "C" {
         blocks.y = (batch_size + threadsPerBlock.y - 1) / threadsPerBlock.y;
         blocks.z = 1;
 
-        batched_vg_pricing_kernel<<<blocks, threadsPerBlock>>>(x_mc, T, K, sigma, theta, kappa, omega, mc_steps, batch_size, state->states);
-
-        CUDA_CHECK(cudaFree(omega));
+        batched_vg_pricing_kernel<<<blocks, threadsPerBlock>>>(x_mc, T, K, sigma, theta, kappa, mc_steps, batch_size, state->states);
 
         CUDA_CHECK(cudaPeekAtLastError());
         #ifdef DEBUG

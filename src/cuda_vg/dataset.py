@@ -12,7 +12,7 @@ import time
 import torch
 import numpy as np
 
-from cuda_vg.bindings import (
+from src.cuda_vg.bindings import (
     CudaRNG,
     cuda_batched_vg_pricing
 )
